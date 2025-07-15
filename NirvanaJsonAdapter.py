@@ -53,13 +53,13 @@ class NirvanaJsonAdapter:
             self.outputFile = sys.stdout
             
     # Function to process events
-    def processEvents(self, context, prefix, event, value, ):
+    def processEvents(self, prefix, event, value, ):
         key = (prefix, event)
         path = [x for x in prefix.split('.') if x != 'item'] # Remove all 'item' from the path to make parsing easier
         if key in self.simpleMapping:
             self.handleMapping(path, value)
         elif key in self.complex_handlers:
-            self.complex_handlers[key](context, value)
+            self.complex_handlers[key](value)
             
 
     def handleMapping(self, path, value):
@@ -115,7 +115,7 @@ class NirvanaJsonAdapter:
         collectionMap = self.context[collection]
         collectionMap.update( {key[0].split('.')[-1]:  value})
         self.context[collection] = collectionMap
-        
+
     def printComma( self ):
         """
         Print a comma if the iterator is greater than 0.

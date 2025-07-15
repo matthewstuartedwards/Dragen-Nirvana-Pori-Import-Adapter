@@ -12,10 +12,10 @@ def addArrayToContext(context, path):
     else:
         container[pathEnd] = [{}]
         
-def perform2ndPass(output_file):
+def perform2ndPass(output_handle):
     # Load your JSON data (replace this with loading from a file if needed)
-    with open(output_file, 'r') as input:
-        data = json.load(input)
+    #with open(output_file, 'r') as input:
+    data = json.load(output_handle)
 
     # Group entries by gene
     gene_entries = defaultdict(list)

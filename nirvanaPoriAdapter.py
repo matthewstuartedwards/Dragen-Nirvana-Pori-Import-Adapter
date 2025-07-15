@@ -1,8 +1,8 @@
 import argparse
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 from CnvAdapter import CnvAdapter
-from VcfAdapter import VcfAdapter
-from ExpressionAdapter import ExpressionAdapter
+#from VcfAdapter import VcfAdapter
+#from ExpressionAdapter import ExpressionAdapter
 
     
     
@@ -31,13 +31,13 @@ if __name__ == "__main__":
         
         if args.cnv:
             cnvAdapter = CnvAdapter(args.cnv)
-            cnvAdapter.readJsonFile( args.cnv )
+            cnvAdapter.readCnvFile( args.cnv )
+        
+        # if args.vcf:
+        #     adapter = VcfAdapter(args.vcf)
             
-        if args.vcf:
-            adapter = VcfAdapter(args.vcf)
-            
-        if args.diseaseZscores and args.biopsyZscores:
-            adapter = ExpressionAdapter(args.diseaseZscores, args.biopsyZscores)
+        # if args.diseaseZscores and args.biopsyZscores:
+        #     adapter = ExpressionAdapter(args.diseaseZscores, args.biopsyZscores)
             
         
         mainAdapter.printOutputFooter()
