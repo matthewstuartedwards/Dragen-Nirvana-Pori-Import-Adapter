@@ -1,4 +1,6 @@
 import json
+from tempfile import TemporaryFile
+import ijson
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 
 class CnvAdapter(NirvanaJsonAdapter):
@@ -77,3 +79,36 @@ class CnvAdapter(NirvanaJsonAdapter):
     def handle_start_map_variants_item(self, value):
         self.addArrayToContext( ['positions', 'variants'] )
         
+    def setOutputHandle(self, handle):
+        return super().setOutputHandle(handle)
+
+    def printCNVHeader( self ):
+        print( "\t\"copyVariants\": [" )
+        
+    def getOutputHandle(self):
+        return self.outputFile if hasattr(self, 'outputFile') else sys.stdout
+        
+    def readCnvFile(self, cnvJsonFile ):
+        # Context object for recording the CNV events
+        iterator= 0
+        positions = [{}]
+        originalOutputHandle = self.getOutputHandle()
+        # Read the JSON file
+        with open( cnvJsonFile, 'r') as f:
+            parser = ijson.parse( f )
+            #position = None
+            self.printCNVHeader()
+            
+            with NamedTemporaryFile( mode='w+', delete=True) as tempfile:
+                self.setOutputHandle( tempfile )
+                print( "[", file=tempfile )
+                for prefix, event, value in parser:
+                    self.processCnvEvents( prefix, event, value )
+                print( "]", file=tempfile )
+                
+                # Go back to the start of the temporary file and read it for the 2nd pass.
+                tempfile.seek(0)
+                self.setOutputHandle( originalOutputHandle )
+                perform2ndPass( tempfile )
+            
+            

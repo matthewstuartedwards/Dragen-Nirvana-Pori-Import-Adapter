@@ -12,7 +12,7 @@ if __name__ == "__main__":
     parser.add_argument('--vcf', metavar='v', type=str, required=False, help='Path to the input JSON file with VCF information')
     parser.add_argument('--diseaseZscores', metavar='z', type=str, required=False, help='Path to the input TSV file with disease Z-scores')
     parser.add_argument('--biopsyZscores', metavar='b', type=str, required=False, help='Path to the input TSV file with biopsy Z-scores')
-    parser.add_argument('--outputFile', metavar='o', type=str, required=False, help='Path to the output JSON file' )
+    parser.add_argument('--outputFile', metavar='o', type=str, required=True, help='Path to the output JSON file' )
     parser.add_argument('--patientID', metavar='p', type=str, required=False, default="ANONYMOUS", help='Patient ID')
     parser.add_argument('--diseaseName', metavar='d', type=str, required=True, help='Disease name for kbDiseaseMatch and is used to populate the matchedCancer flag. eg: sarcoma, colorectal cancer')
     parser.add_argument('--projectName', metavar='j', type=str, required=False, default="NoProjectName", help='Project name for Pori')
@@ -21,23 +21,26 @@ if __name__ == "__main__":
     
     
     mainAdapter = NirvanaJsonAdapter( args.outputFile )
-    mainAdapter.printOutputHeader(args.patientID, args.diseaseName, args.projectName, args.template)
     
     
-    if args.cnv:
-        adapter = CnvAdapter(args.cnv)
-        if args.outputFile:
-            adapter.setOutputFile(args.outputFile)
-    if args.vcf:
-        adapter = VcfAdapter(args.vcf)
-        if args.outputFile:
-            adapter.setOutputFile(args.outputFile)
-    if args.diseaseZscores and args.biopsyZscores:
-        adapter = ExpressionAdapter(args.diseaseZscores, args.biopsyZscores)
-        if args.outputFile:
-            adapter.setOutputFile(args.outputFile)
-    
-    mainAdapter.printOutputFooter()
+    with open(args.outputFile, 'w') as output_handle:
+        
+        mainAdapter.setOutputHandle(output_handle)
+        mainAdapter.printOutputHeader(args.patientID, args.diseaseName, args.projectName, args.template)
+        
+        
+        if args.cnv:
+            cnvAdapter = CnvAdapter(args.cnv)
+            cnvAdapter.readJsonFile( args.cnv )
+            
+        if args.vcf:
+            adapter = VcfAdapter(args.vcf)
+            
+        if args.diseaseZscores and args.biopsyZscores:
+            adapter = ExpressionAdapter(args.diseaseZscores, args.biopsyZscores)
+            
+        
+        mainAdapter.printOutputFooter()
     
     
     
