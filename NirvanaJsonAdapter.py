@@ -8,13 +8,13 @@ class NirvanaJsonAdapter:
     This class is responsible for handling the import of data from Nirvana Pori.
     """
     
-    def __init__( self, outputFile=None ):
+    def __init__( self, output_handle=None ):
         """
         Initialize the NirvanaJsonAdapter with an optional output file path.
 
         :param outputFile: Path to the output JSON file. If None, no output file is set.
         """
-        self.outputFile = outputFile
+        self.output_handle = output_handle
         self.context = {}
         self.simpleMapping = {}
         self.complex_handlers = {}
@@ -29,17 +29,17 @@ class NirvanaJsonAdapter:
         :param projectName: Project name.
         :param template: Template for the Pori import. See https://bcgsc.github.io/pori/ipr/templates/".
         """
-        print("{")
-        print(f'\t"patient_id": "{patientID}",')
-        print(f'\t"disease_name": "{diseaseName}",')
-        print(f'\t"project_name": "{projectName}",')
-        print(f'\t"template": "{template}",')
+        print("{", file=self.output_handle)
+        print(f'\t"patientId": "{patientID}",', file=self.output_handle)
+        print(f'\t"kbDiseaseMatch": "{diseaseName}",', file=self.output_handle)
+        print(f'\t"project": "{projectName}",', file=self.output_handle)
+        print(f'\t"template": "{template}",', file=self.output_handle)
 
     def printOutputFooter(self):
         """
         Print the footer for the output JSON.
         """
-        print("}")
+        print("}", file=self.output_handle)
         
     def setOutputHandle( self, handle ):
         """
@@ -48,9 +48,9 @@ class NirvanaJsonAdapter:
         """
         
         if handle is not None:
-            self.outputFile = handle
+            self.output_handle = handle
         else:
-            self.outputFile = sys.stdout
+            self.output_handle = sys.stdout
             
     # Function to process events
     def processEvents(self, prefix, event, value, ):
@@ -123,7 +123,7 @@ class NirvanaJsonAdapter:
         """
         iterator = self.context.get('iterator', 0)
         if iterator > 0:
-            print(",", end=' ', file=self.outputFile)
+            print(",", end=' ', file=self.output_handle)
         self.context['iterator'] = iterator + 1
     
     def addArrayToContext(self, path):

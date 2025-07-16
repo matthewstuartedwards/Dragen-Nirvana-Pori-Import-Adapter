@@ -12,10 +12,10 @@ def addArrayToContext(context, path):
     else:
         container[pathEnd] = [{}]
         
-def perform2ndPass(output_handle):
+def perform2ndPass(input_handle, output_handle):
     # Load your JSON data (replace this with loading from a file if needed)
     #with open(output_file, 'r') as input:
-    data = json.load(output_handle)
+    data = json.load(input_handle)
 
     # Group entries by gene
     gene_entries = defaultdict(list)
@@ -47,9 +47,9 @@ def perform2ndPass(output_handle):
         selected_entries.append(entries[0])
 
     # Output the selected entries
-    print( "\t\"smallMutations\": ", end = "" )
-    print( json.dumps(selected_entries, indent=4), end = "" )
-    print( "," )
+    #print( "\t\"smallMutations\": ", end = "" )
+    print( json.dumps(selected_entries, indent=4), end = "", file=output_handle )
+    #print( "," )
 
 
 def ensureContainerExists(context, path):

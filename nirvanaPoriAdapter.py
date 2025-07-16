@@ -19,18 +19,16 @@ if __name__ == "__main__":
     parser.add_argument('--template', metavar='t', type=str, required=False, default="genomic", help='Template for the Pori import. Default is "genomic".')
     args = parser.parse_args()
     
-    
-    mainAdapter = NirvanaJsonAdapter( args.outputFile )
-    
-    
+    # Because many objects will be writing to the output file, I'm opening it here.
+    # Could refactor this so that each object opens the file and writes when needed with a lock
+    # That would allow multithreaded processing until printing is needed.
     with open(args.outputFile, 'w') as output_handle:
-        
-        mainAdapter.setOutputHandle(output_handle)
+        mainAdapter = NirvanaJsonAdapter( output_handle )
         mainAdapter.printOutputHeader(args.patientID, args.diseaseName, args.projectName, args.template)
         
         
         if args.cnv:
-            cnvAdapter = CnvAdapter(args.cnv)
+            cnvAdapter = CnvAdapter( output_handle, args.cnv )
             cnvAdapter.readCnvFile( args.cnv )
         
         # if args.vcf:

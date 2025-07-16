@@ -14,11 +14,10 @@ class CnvAdapter(NirvanaJsonAdapter):
     
     # private class members
     iterator= 0
-    positions = [{}]
     printedGenes = set()  # Set to keep track of printed genes to avoid duplicates
     currentTranscript = None
     
-    def __init__(self, cnv_file):
+    def __init__(self, output_handle, cnv_file):
         """
         Initialize the CnvAdapter with the given CNV file path.
 
@@ -26,7 +25,8 @@ class CnvAdapter(NirvanaJsonAdapter):
         """
         super().__init__()
         self.cnvFile = cnv_file
-        
+        self.context['positions'] = [{}]
+        self.setOutputHandle(output_handle)
 
         
         # Add mappings
@@ -56,20 +56,20 @@ class CnvAdapter(NirvanaJsonAdapter):
     # We don't print a position if it doesn't have the right filter item, or if the gene has already been printed.
     # PORI only maps gene names to the database, so we can't have multiple genes being output.
     def handle_end_map_positions_item(self, value):
-        position = self.positions[0]
+        position = self.context['positions'][0]
         
         if position.get('filters') and self.passFilter in position['filters']:
             printPosition = self.massagePosition( position )
             
             # Check if the position has a gene as PORI will expect one.
             if 'gene' not in printPosition or printPosition['gene'] is None:
-                self.positions = [{}]  # Reset positions to avoid printing empty objects
+                self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
                 return
             
             self.printComma() # Function handles printing a comma if needed for array or map purposes
-            print(json.dumps(printPosition, indent=4), file=self.outputFile)
+            print(json.dumps(printPosition, indent=4), file=self.output_handle)
         
-        self.positions = [{}]
+        self.context['positions'] = [{}]
         
     # This function handles the start of a new transcript item
     # If this is the first new transcript, it initializes the list and the context
@@ -83,14 +83,14 @@ class CnvAdapter(NirvanaJsonAdapter):
         return super().setOutputHandle(handle)
 
     def printCNVHeader( self ):
-        print( "\t\"copyVariants\": [" )
+        print( "\t\"copyVariants\":", file=self.output_handle )
         
     def getOutputHandle(self):
-        return self.outputFile if hasattr(self, 'outputFile') else sys.stdout
+        return self.output_handle if hasattr(self, 'output_handle') else sys.stdout
         
     def readCnvFile(self, cnvJsonFile ):
         self.iterator= 0
-        self.positions = [{}]
+        self.context['positions'] = [{}]
         
         originalOutputHandle = self.getOutputHandle()
         # Read the JSON file
@@ -108,8 +108,8 @@ class CnvAdapter(NirvanaJsonAdapter):
                 
                 # Go back to the start of the temporary file and read it for the 2nd pass.
                 tempfile.seek(0)
-                self.setOutputHandle( originalOutputHandle )
-                perform2ndPass( tempfile )
+                self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
+                perform2ndPass( tempfile, originalOutputHandle )
                 
     def massagePosition(self, position):
         """
