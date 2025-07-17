@@ -4,9 +4,9 @@ from tempfile import NamedTemporaryFile
 import ijson
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 from jsonStructure import perform2ndPass
-from jsonConstants import cnvConsequencePriorityList, variantTypeKBCategoryMap
+from jsonConstants import variantTypeKBCategoryMap, 
 
-class CnvAdapter(NirvanaJsonAdapter):
+class VcfAdapter(NirvanaJsonAdapter):
     """
     Adapter class for CNV data import.
     This class is responsible for handling the import of CNV data from Nirvana Pori.
@@ -14,14 +14,14 @@ class CnvAdapter(NirvanaJsonAdapter):
     
     # private class members
     iterator= 0
-    printedGenes = set()  # Set to keep track of printed genes to avoid duplicates
-    currentTranscript = None
+    transcriptEvents = []
+    transcript = None
     
-    def __init__(self, output_handle ):
+    def __init__(self, output_handle):
         """
-        Initialize the CnvAdapter with the given CNV file path.
+        Initialize the VcfAdapter with the given VNC file path.
 
-        :param cnv_file: Path to the input JSON file with CNV information.
+        :param cnv_file: Path to the input JSON file with VNC information.
         """
         super().__init__()
         self.context['positions'] = [{}]
@@ -30,26 +30,21 @@ class CnvAdapter(NirvanaJsonAdapter):
         
         # Add mappings
         self.addSimpleMapping(('positions.item.chromosome', 'string'), 'chromosome')
-        self.addSimpleMapping(('positions.item.position', 'number'), 'start')
-        self.addSimpleMapping(('positions.item.svEnd', 'number'), 'end')
-        self.addSimpleMapping(('positions.item.cytogeneticBand', 'string'), 'cytogeneticBand')
-        self.addSimpleMapping(('positions.item.variants.item.variantType', 'string'), 'kbCategory')
-        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.transcript', 'string'), 'transcript')
-        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.source', 'string'), 'source')
-        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgnc', 'string'), 'gene')
-        self.addSimpleMapping(('positions.item.samples.item.copyNumber', 'number'), 'copyNumber')
-        self.addSimpleMapping(('positions.item.samples.item.minorHaplotypeCopyNumber', 'number'), 'minorHaplotype')
-        self.addSimpleMapping(('positions.item.samples.item.lossOfHeterozygosity', 'number'), 'lossOfHeterozygosity')
-        self.addSimpleMapping(('positions.item.samples.item.genotype', 'string'), 'genotype')
+        self.addSimpleMapping(('positions.item.variants.item.begin', 'number'), 'startPosition')
+        self.addSimpleMapping(('positions.item.variants.item.end', 'number'), 'endPosition')
+        self.addSimpleMapping(('positions.item.variants.item.refAllele', 'string'), 'refSeq')
+        self.addSimpleMapping(('positions.item.variants.item.altAllele', 'string'), 'altSeq')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgvsp', 'string'), 'hgvsp')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgvsc', 'string'), 'hgvsc')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.isCanonical', 'boolean'), 'isCanonical')
-        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.completeOverlap', 'boolean'), 'completeOverlap')
-        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.consequence.item', 'string'), 'consequence')
-        self.addSimpleMapping(('positions.item.filters.item', 'string'), 'filters')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.source', 'string'), 'source')
         
         self.addComplexMapping(('positions.item', 'end_map'), self.handle_end_map_positions_item)
         self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item.consequence.item', 'start_array'), self.handleTranscriptConsequence)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'start_map'), self.handleNewTranscript)
+        self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'end_map'), self.addNewTranscript)
+        
     
     # When a position ends, it's time to figure out if we need to print the position.
     # We don't print a position if it doesn't have the right filter item, or if the gene has already been printed.
@@ -74,6 +69,9 @@ class CnvAdapter(NirvanaJsonAdapter):
     # If this is the first new transcript, it initializes the list and the context
     def handleNewTranscript(self, value):
         self.addArrayToContext(['positions','variants','transcripts'])
+        
+    def addNewTranscript(self, value):
+        
 
     def handle_start_map_variants_item(self, value):
         self.addArrayToContext( ['positions', 'variants'] )

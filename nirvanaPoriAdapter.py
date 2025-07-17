@@ -28,11 +28,13 @@ if __name__ == "__main__":
         
         
         if args.cnv:
-            cnvAdapter = CnvAdapter( output_handle, args.cnv )
-            cnvAdapter.readCnvFile( args.cnv )
+            adapter = CnvAdapter( output_handle )
+            adapter.readCnvFile( args.cnv )
         
-        # if args.vcf:
-        #     adapter = VcfAdapter(args.vcf)
+        if args.vcf:
+            adapter = VcfAdapter( output_handle )
+            adapter.readVcfFile(args.vcf)
+            
             
         # if args.diseaseZscores and args.biopsyZscores:
         #     adapter = ExpressionAdapter(args.diseaseZscores, args.biopsyZscores)
