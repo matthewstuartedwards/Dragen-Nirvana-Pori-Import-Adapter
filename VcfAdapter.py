@@ -4,7 +4,66 @@ from tempfile import NamedTemporaryFile
 import ijson
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 from jsonStructure import perform2ndPass
-from jsonConstants import variantTypeKBCategoryMap, 
+from jsonConstants import cnvConsequencePriorityList
+
+class Transcript:
+    """
+    Class to represent a transcript.
+    This class is used to store information about a transcript, including its ID, source, and consequences.
+    """
+    hgnc = None
+    hgvsp = None
+    hgvsc = None
+    isCanonical = False
+    source = None
+    consequences = []
+    transcript = None
+    
+    def __init__( self ):
+        self.consequences = []
+    
+    def putSource(self, source):
+        self.source = source
+    
+    def putConsequence(self, consequence):
+        self.consequences.append(consequence)
+        
+    def putHgnc( self, hgnc ):
+        self.hgnc = hgnc
+        
+    def putHgvsp(self, hgvsp):
+        self.hgvsp = hgvsp
+    
+    def putHgvsc(self, hgvsc):
+        self.hgvsc = hgvsc
+        
+    def putCanonical(self, isCanonical):
+        self.isCanonical = isCanonical
+        
+    def putTranscript(self, transcript):
+        self.transcript = transcript
+        
+    def getConsequences(self):
+        return self.consequences
+    
+    def getSource(self):
+        return self.source
+    
+    def getGene(self):
+        return self.hgnc
+    
+    def getCanonical(self):
+        return self.isCanonical
+    
+    def getTranscript(self):
+        return self.transcript
+    
+    def getHgvsProtein(self):
+        return self.hgvsp
+    
+    def getHgvsCds(self):
+        return self.hgvsc
+
 
 class VcfAdapter(NirvanaJsonAdapter):
     """
@@ -15,7 +74,8 @@ class VcfAdapter(NirvanaJsonAdapter):
     # private class members
     iterator= 0
     transcriptEvents = []
-    transcript = None
+    transcripts = []
+    currentTranscript = None
     
     def __init__(self, output_handle):
         """
@@ -26,7 +86,6 @@ class VcfAdapter(NirvanaJsonAdapter):
         super().__init__()
         self.context['positions'] = [{}]
         self.setOutputHandle(output_handle)
-
         
         # Add mappings
         self.addSimpleMapping(('positions.item.chromosome', 'string'), 'chromosome')
@@ -40,20 +99,22 @@ class VcfAdapter(NirvanaJsonAdapter):
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.source', 'string'), 'source')
         
         self.addComplexMapping(('positions.item', 'end_map'), self.handle_end_map_positions_item)
-        self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
-        self.addComplexMapping(('positions.item.variants.item.transcripts.item.consequence.item', 'start_array'), self.handleTranscriptConsequence)
+        #self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
+        self.addComplexMapping(('positions.item.variants.item.transcripts.item.consequence.item', 'string'), self.handleTranscriptConsequence)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'start_map'), self.handleNewTranscript)
-        self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'end_map'), self.addNewTranscript)
+        self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'end_map'), self.addFinishedTranscript)
         
     
     # When a position ends, it's time to figure out if we need to print the position.
     # We don't print a position if it doesn't have the right filter item, or if the gene has already been printed.
     # PORI only maps gene names to the database, so we can't have multiple genes being output.
     def handle_end_map_positions_item(self, value):
+        
         position = self.context['positions'][0]
         
         if position.get('filters') and self.passFilter in position['filters']:
-            printPosition = self.massagePosition( position )
+            printPosition = self.massagePosition( position, self.transcripts )
+            
             
             # Check if the position has a gene as PORI will expect one.
             if 'gene' not in printPosition or printPosition['gene'] is None:
@@ -68,13 +129,21 @@ class VcfAdapter(NirvanaJsonAdapter):
     # This function handles the start of a new transcript item
     # If this is the first new transcript, it initializes the list and the context
     def handleNewTranscript(self, value):
-        self.addArrayToContext(['positions','variants','transcripts'])
+        self.currentTranscript = Transcript()
         
-    def addNewTranscript(self, value):
+    def addFinishedTranscript(self, value):
+        self.currentTranscript.putSource( self.context['positions.item.variants.item.transcripts.item.source'] )
+        self.currentTranscript.putHgnc( self.context['positions.item.variants.item.transcripts.item.hgnc'] )
+        self.currentTranscript.putHgvsp( self.context['positions.item.variants.item.transcripts.item.hgvsp'] )
+        self.currentTranscript.putHgvsc( self.context['positions.item.variants.item.transcripts.item.hgvsc'] )
+        self.currentTranscript.putCanonical( self.context['positions.item.variants.item.transcripts.item.isCanonical'] )
+        self.currentTranscript.putTranscript( self.context['positions.item.variants.item.transcripts.item.transcript'] )
         
+        
+        self.transcripts.append(self.currentTranscript)
 
-    def handle_start_map_variants_item(self, value):
-        self.addArrayToContext( ['positions', 'variants'] )
+#    def handle_start_map_variants_item(self, value):
+#        self.addArrayToContext( ['positions', 'variants'] )
         
     def setOutputHandle(self, handle):
         return super().setOutputHandle(handle)
@@ -107,19 +176,18 @@ class VcfAdapter(NirvanaJsonAdapter):
                 tempfile.seek(0)
                 self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
                 perform2ndPass( tempfile, originalOutputHandle )
-                
-    def massagePosition(self, position):
+
+    def massagePosition(self, position, transcripts):
         """
         Massage the position data to prepare it for output.
         This includes converting chromosome band, handling variants, and removing unnecessary fields.
         """
         printPosition = position.copy()
+    
         
-        # Convert chromosome band to a more readable format
-        printPosition['chromosomeBand'] = self.convertCytogeneticBand(printPosition.get('chromosome'), printPosition.pop('cytogeneticBand', None))
-        
-        if 'transcripts' in printPosition['variants'][0]:
-            self.processVariant( printPosition )
+        if transcripts:
+            bestTranscript = self.getBestTranscript(transcripts)
+            self.processTranscript( printPosition, bestTranscript )
         if 'variants' in printPosition: # Situation where variants are still around because there were no transcripts
             printPosition.pop('variants', None)
         if 'samples' in printPosition:
@@ -163,17 +231,13 @@ class VcfAdapter(NirvanaJsonAdapter):
         position.pop('samples', None)  # Remove samples as we are only interested in the first one for now
 
 
-    def processVariant(self, position):
-        #for variant in position.get('variants'):
-        variant = position.get('variants')[0] #TODO, handle multiple variants
-        transcript = self.getBestTranscript( variant.get('transcripts') )
-        position['transcript'] = transcript['transcript']
-        position['kbCategory'] = variant['variantType']
-        position['kbCategory'] = variantTypeKBCategoryMap.get(position.get('kbCategory'), 'unknown')
-        position['gene'] = transcript['hgnc']
-        position['source'] = transcript['source']
-        
-        position.pop('variants', None)  # Remove variants as we are only interested in the first one for now
+    def processTranscript(self, position, transcript):
+        position['gene'] = transcript.getHgnc()
+        position['source'] = transcript.getSource()
+        position['isCanonical'] = transcript.getCanonical()
+        position['transcript'] = transcript.getTranscript()
+        position['hgvsProtein'] = transcript.getHgvsp()
+        position['hgvsCds'] = transcript.getHgvsc()
 
     def getBestTranscript(self, transcripts):
         """
@@ -186,14 +250,14 @@ class VcfAdapter(NirvanaJsonAdapter):
         
         consequenceRank = []
         for transcript in transcripts:
-            consequenceRank.append( (self.getBestConsequence( transcript.get('consequence'), cnvConsequencePriorityList), transcript.get('source') ) )
+            consequenceRank.append( (self.getBestConsequence( transcript.getConsequence(), cnvConsequencePriorityList), transcript.getSource() ) )
         bestRank = len(cnvConsequencePriorityList)
         bestIndex = -1
         i = 0
         for (rank, source) in consequenceRank:
             
-            canonical = transcripts[i].get('isCanonical', False)
-            bestCanonical = transcripts[bestIndex].get('isCanonical', False) if bestIndex >= 0 else False
+            canonical = transcripts[i].getCanonical()
+            bestCanonical = transcripts[bestIndex].getCanonical() if bestIndex >= 0 else False
             # Check for the canonical transcript first.  This should be one of the best transcripts to use.
             # If the i indexed transcript is canonical and the best one is not, then we should use this one.
             if canonical and not bestCanonical: 
@@ -209,29 +273,9 @@ class VcfAdapter(NirvanaJsonAdapter):
         
         return transcripts[bestIndex]
     
-    def getBestConsequence(self, consequences, consequencePriorityList):
-        """
-        Get the best consequence from the list of transcript events.
-        """
-        bestRank = len(consequencePriorityList)
-        indexOfBestRank = -1
-        index = 0
-        for event in consequences:
-            #print( "Event: " + str(event), file=sys.stderr )
-            
-            if event in consequencePriorityList:
-                rank = consequencePriorityList.index( event )
-                if rank < bestRank:
-                    bestRank = rank
-                    indexOfBestRank = index
-            index+=1
-        return indexOfBestRank
-    
     def handleTranscriptConsequence(self, value):
-        if not self.currentTranscript:
-            self.currentTranscript = { 'consequence': [value]}
-        else:
-            self.currentTranscript['consequence'].append(value)
+        self.currentTranscript.putConsequence(value)
         
-        # Note, VS code has this underlined as an error, but it is not an error.
-        self.currentTranscript['consequenceRank'] = cnvConsequencePriorityList.index(value) if value in cnvConsequencePriorityList else len(cnvConsequencePriorityList)
+    def printHeader(self):
+        print("\t\"smallMutations\":", file=self.output_handle)
+

@@ -1,7 +1,7 @@
 import argparse
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 from CnvAdapter import CnvAdapter
-#from VcfAdapter import VcfAdapter
+from VcfAdapter import VcfAdapter
 #from ExpressionAdapter import ExpressionAdapter
 
     
@@ -27,13 +27,13 @@ if __name__ == "__main__":
         mainAdapter.printOutputHeader(args.patientID, args.diseaseName, args.projectName, args.template)
         
         
-        if args.cnv:
-            adapter = CnvAdapter( output_handle )
-            adapter.readCnvFile( args.cnv )
+        #if args.cnv:
+        #    adapter = CnvAdapter( output_handle )
+        #    adapter.readJsonFile( args.cnv )
         
         if args.vcf:
             adapter = VcfAdapter( output_handle )
-            adapter.readVcfFile(args.vcf)
+            adapter.readJsonFile(args.vcf)
             
             
         # if args.diseaseZscores and args.biopsyZscores:

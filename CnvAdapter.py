@@ -1,9 +1,6 @@
 import json
 import sys
-from tempfile import NamedTemporaryFile
-import ijson
 from NirvanaJsonAdapter import NirvanaJsonAdapter
-from jsonStructure import perform2ndPass
 from jsonConstants import cnvConsequencePriorityList, variantTypeKBCategoryMap
 
 class CnvAdapter(NirvanaJsonAdapter):
@@ -81,34 +78,32 @@ class CnvAdapter(NirvanaJsonAdapter):
     def setOutputHandle(self, handle):
         return super().setOutputHandle(handle)
 
-    def printCNVHeader( self ):
+    def printHeader( self ):
         print( "\t\"copyVariants\":", file=self.output_handle )
+
         
-    def getOutputHandle(self):
-        return self.output_handle if hasattr(self, 'output_handle') else sys.stdout
+    # def readCnvFile(self, cnvJsonFile ):
+    #     self.iterator= 0
+    #     self.context['positions'] = [{}]
         
-    def readCnvFile(self, cnvJsonFile ):
-        self.iterator= 0
-        self.context['positions'] = [{}]
-        
-        originalOutputHandle = self.getOutputHandle()
-        # Read the JSON file
-        with open( cnvJsonFile, 'r') as f:
-            parser = ijson.parse( f )
-            #position = None
-            self.printCNVHeader()
+    #     originalOutputHandle = self.getOutputHandle()
+    #     # Read the JSON file
+    #     with open( cnvJsonFile, 'r') as f:
+    #         parser = ijson.parse( f )
+    #         #position = None
+    #         self.printCNVHeader()
             
-            with NamedTemporaryFile( mode='w+', delete=True) as tempfile:
-                self.setOutputHandle( tempfile )
-                print( "[", file=tempfile )
-                for prefix, event, value in parser:
-                    self.processEvents( prefix, event, value )
-                print( "]", file=tempfile )
+    #         with NamedTemporaryFile( mode='w+', delete=True) as tempfile:
+    #             self.setOutputHandle( tempfile )
+    #             print( "[", file=tempfile )
+    #             for prefix, event, value in parser:
+    #                 self.processEvents( prefix, event, value )
+    #             print( "]", file=tempfile )
                 
-                # Go back to the start of the temporary file and read it for the 2nd pass.
-                tempfile.seek(0)
-                self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
-                perform2ndPass( tempfile, originalOutputHandle )
+    #             # Go back to the start of the temporary file and read it for the 2nd pass.
+    #             tempfile.seek(0)
+    #             self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
+    #             perform2ndPass( tempfile, originalOutputHandle )
                 
     def massagePosition(self, position):
         """
@@ -210,24 +205,6 @@ class CnvAdapter(NirvanaJsonAdapter):
             i += 1
         
         return transcripts[bestIndex]
-    
-    def getBestConsequence(self, consequences, consequencePriorityList):
-        """
-        Get the best consequence from the list of transcript events.
-        """
-        bestRank = len(consequencePriorityList)
-        indexOfBestRank = -1
-        index = 0
-        for event in consequences:
-            #print( "Event: " + str(event), file=sys.stderr )
-            
-            if event in consequencePriorityList:
-                rank = consequencePriorityList.index( event )
-                if rank < bestRank:
-                    bestRank = rank
-                    indexOfBestRank = index
-            index+=1
-        return indexOfBestRank
     
     def handleTranscriptConsequence(self, value):
         if not self.currentTranscript:

@@ -1,6 +1,8 @@
 import sys
+from tempfile import NamedTemporaryFile
 import jsonConstants
 import jsonStructure
+import ijson
 
 class NirvanaJsonAdapter:
     """
@@ -128,3 +130,50 @@ class NirvanaJsonAdapter:
     
     def addArrayToContext(self, path):
         jsonStructure.addArrayToContext(self.context, path)
+
+    def getBestConsequence(self, consequences, consequencePriorityList):
+        """
+        Get the best consequence from the list of transcript events.
+        """
+        bestRank = len(consequencePriorityList)
+        indexOfBestRank = -1
+        index = 0
+        for event in consequences:
+            #print( "Event: " + str(event), file=sys.stderr )
+            
+            if event in consequencePriorityList:
+                rank = consequencePriorityList.index( event )
+                if rank < bestRank:
+                    bestRank = rank
+                    indexOfBestRank = index
+            index+=1
+        return indexOfBestRank
+    
+    def getOutputHandle(self):
+        return self.output_handle if hasattr(self, 'output_handle') else sys.stdout
+    
+    def printHeader(self):
+        pass
+    
+    def readJsonFile(self, jsonFile ):
+        self.iterator= 0
+        self.context['positions'] = [{}]
+        
+        originalOutputHandle = self.getOutputHandle()
+        # Read the JSON file
+        with open( jsonFile, 'r') as f:
+            parser = ijson.parse( f )
+            #position = None
+            self.printHeader()
+            
+            with NamedTemporaryFile( mode='w+', delete=True) as tempfile:
+                self.setOutputHandle( tempfile )
+                print( "[", file=tempfile )
+                for prefix, event, value in parser:
+                    self.processEvents( prefix, event, value )
+                print( "]", file=tempfile )
+                
+                # Go back to the start of the temporary file and read it for the 2nd pass.
+                tempfile.seek(0)
+                self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
+                jsonStructure.perform2ndPass( tempfile, originalOutputHandle )
