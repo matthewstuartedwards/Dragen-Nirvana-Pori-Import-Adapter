@@ -3,6 +3,7 @@ from tempfile import NamedTemporaryFile
 import jsonConstants
 import jsonStructure
 import ijson
+from decimal import Decimal
 
 class NirvanaJsonAdapter:
     """
@@ -67,6 +68,8 @@ class NirvanaJsonAdapter:
     def handleMapping(self, path, value):
         pathEnd = path[-1]
         container = self.ensureContainerExists( path[:-1] )
+        if isinstance(value, Decimal):
+            value = str(value)
         if pathEnd in container: # Check if the key already exists in the container.
             # This is possibly an array item if the item already exists.  Convert it if not already an array.
             if not isinstance(container.get(pathEnd), list):
@@ -85,6 +88,7 @@ class NirvanaJsonAdapter:
         :param value: The name that will be associated with the key.  For simple mappings this 
         will generally be the name you want to use in the output JSON.
         """
+        # Can't Serialize Decimal types in JSON, so convert them to string.
         self.simpleMapping[key] = value
         
     def addComplexMapping(self, key, handler):

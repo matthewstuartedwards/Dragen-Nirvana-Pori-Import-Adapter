@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from tempfile import NamedTemporaryFile
 import ijson
@@ -6,7 +7,7 @@ from NirvanaJsonAdapter import NirvanaJsonAdapter
 from jsonStructure import perform2ndPass
 from jsonConstants import cnvConsequencePriorityList
 
-class Transcript:
+class VcfTranscript:
     """
     Class to represent a transcript.
     This class is used to store information about a transcript, including its ID, source, and consequences.
@@ -103,23 +104,29 @@ class VcfAdapter(NirvanaJsonAdapter):
         self.addSimpleMapping(('positions.item.chromosome', 'string'), 'chromosome')
         self.addSimpleMapping(('positions.item.variants.item.begin', 'number'), 'startPosition')
         self.addSimpleMapping(('positions.item.variants.item.end', 'number'), 'endPosition')
-        self.addSimpleMapping(('positions.item.variants.item.refAllele', 'string'), 'refSeq')
-        self.addSimpleMapping(('positions.item.variants.item.altAllele', 'string'), 'altSeq')
+        #self.addSimpleMapping(('positions.item.refAllele', 'string'), 'refSeq')
+        #self.addSimpleMapping(('positions.item.altAlleles.item', 'string'), 'altSeq')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgvsp', 'string'), 'hgvsp')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgvsc', 'string'), 'hgvsc')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.isCanonical', 'boolean'), 'isCanonical')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.source', 'string'), 'source')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.transcript', 'string'), 'transcript')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.bioType', 'string'), 'bioType')
+        self.addSimpleMapping(('positions.item.variants.item.hgvsg', 'string'), 'hgvsg')
+        self.addSimpleMapping(('positions.item.variants.item.variantType', 'string'), 'variantType')
+        self.addSimpleMapping(('positions.item.variants.item.phylopScore', 'number'), 'phylopScore')
+        self.addSimpleMapping(('positions.item.variants.item.vid', 'string'), 'vid')
+        self.addSimpleMapping(('positions.item.variants.item.refAllele', 'string'), 'refAllele')
+        self.addSimpleMapping(('positions.item.variants.item.altAllele', 'string'), 'altAllele')
         self.addSimpleMapping(('positions.item.filters.item', 'string'), 'filters')
+        
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgnc', "string"), 'hgnc')
         
-        #TODO: Process sample information.
         self.addSimpleMapping(('positions.item.samples.item.genotype', 'string'), 'genotype')
-        self.addSimpleMapping(('positions.item.samples.item.variantFrequencies', 'number'), 'variantFrequencies')
+        self.addSimpleMapping(('positions.item.samples.item.variantFrequencies.item', 'number'), 'variantFrequencies')
+        self.addSimpleMapping(('positions.item.samples.item.allelleDepths.item', 'number'), 'alleleDepths')
         self.addSimpleMapping(('positions.item.samples.item.totalDepth', 'number'), 'totalDepth')
-        self.addSimpleMapping(('positions.item.samples.item.allelleDepths', 'number'), 'allelleDepths')
-        # Double types aren't serializable to JSON apparently.  Rework this if you enable
-        #self.addSimpleMapping(('positions.item.samples.item.somaticQuality', 'number'), 'somaticQuality')
-        
+        self.addSimpleMapping(('positions.item.samples.item.somaticQuality', 'number'), 'somaticQuality')
         
         self.addComplexMapping(('positions.item', 'end_map'), self.handle_end_map_positions_item)
         self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
@@ -156,7 +163,7 @@ class VcfAdapter(NirvanaJsonAdapter):
             
             
             # Check if the position has a gene as PORI will expect one.
-            if 'gene' not in printPosition or printPosition['gene'] is None:
+            if 'gene' not in printPosition or printPosition['gene'] is None or 'proteinChange' not in printPosition:
                 self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
                 return
             
@@ -168,7 +175,7 @@ class VcfAdapter(NirvanaJsonAdapter):
     # This function handles the start of a new transcript item
     # If this is the first new transcript, it initializes the list and the context
     def handleNewTranscript(self, value):
-        self.currentTranscript = Transcript()
+        self.currentTranscript = VcfTranscript()
         
     def addFinishedTranscript(self, value):
         self.currentTranscript.putSource(self.context['positions'][0]['variants'][-1]['transcripts'][-1]['source'])
@@ -178,6 +185,8 @@ class VcfAdapter(NirvanaJsonAdapter):
         self.currentTranscript.putCanonical(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('isCanonical'))
         self.currentTranscript.putTranscript(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('transcript'))
         self.transcripts.append(self.currentTranscript)
+        self.context['positions'][0]['variants'][-1]['transcripts'] = [{}]
+        self.currentTranscript = None
 
 #    def handle_start_map_variants_item(self, value):
 #        self.addArrayToContext( ['positions', 'variants'] )
@@ -226,11 +235,33 @@ class VcfAdapter(NirvanaJsonAdapter):
             bestTranscript = self.getBestTranscript(transcripts)
             self.processTranscript( printPosition, bestTranscript )
         if 'variants' in printPosition: # Situation where variants are still around because there were no transcripts
-            printPosition.pop('variants', None)
+            self.processVariant(printPosition)
         if 'samples' in printPosition:
             self.processSample( printPosition )
         
+        # Make sure proteinChange is in the position.
+        if printPosition.get('hgvsProtein'):
+            # Check the format of the hgvsProtein.  There's some weird stuff out there.
+            pattern = re.compile(r'(.*):(c\..*)\(p.\((.*)\)\)')    
+            match = pattern.match(printPosition['hgvsProtein'])
+            if match:
+                position['hgvsProtein'] = match.group(1) + ":" + "p." + match.group(3)
+            printPosition['hgvsProtein'] = printPosition['hgvsProtein'].replace("(", "")
+            printPosition['hgvsProtein'] = printPosition['hgvsProtein'].replace(")", "")
+            
+            printPosition['proteinChange'] = printPosition['hgvsProtein'].split(':')[1]
+        elif printPosition.get('hgvsg'):
+            proteinChange = printPosition['hgvsg']
+            isMitochondrial = re.compile(r'^(\S+:m\.\S+)?$')
+            if not isMitochondrial.match( proteinChange ):
+                printPosition['proteinChange'] = proteinChange.split(':')[1]
+            else:
+                printPosition['proteinChange'] = proteinChange.split(':')[0]
+                printPosition['transcript'] = '.'
+            
+        
         return printPosition
+    
     
     def convertCytogeneticBand(self, chromosome, cytogeneticBand):
         return self.getChromosomeNumberOnly(chromosome) + ":" + cytogeneticBand if cytogeneticBand else None
@@ -246,22 +277,45 @@ class VcfAdapter(NirvanaJsonAdapter):
         
         # TODO: There are more than 1 sample.  How to process them?
         sample = position.get('samples')[0]
-                
-        position['genotype'] = sample.get('genotype', None)
-        position['variantFrequencies'] = sample.get('variantFrequencies', None)
-        position['alleleDepths'] = sample.get('allelleDepths', None)
-        position['somaticQuality'] = sample.get('somaticQuality', None)
+        
+        if sample.get('genotype'):
+            position['genotype'] = sample.get('genotype')
+        if sample.get('variantFrequencies') is not None:
+            position['variantFrequencies'] = sample.get('variantFrequencies')
+        if sample.get('allelleDepths'):
+            position['alleleDepths'] = sample.get('allelleDepths')
+        if sample.get('totalDepth'):
+            position['totalDepth'] = sample.get('totalDepth')
+        if sample.get('somaticQuality'):
+            position['somaticQuality'] = sample.get('somaticQuality')
         
         position.pop('samples', None)  # Remove samples as we are only interested in the first one for now
+
+    def processVariant(self, position):
+        variant = position.get('variants')[0]
+        position['startPosition'] = variant.get('begin')
+        position['endPosition'] = variant.get('end')
+        position['hgvsg'] = variant.get('hgvsg')
+        position['variantType'] = variant.get('variantType')
+        if variant.get('phylopScore'):
+            position['phylopScore'] = variant.get('phylopScore')
+        position['vid'] = variant.get('vid')
+        position['refSeq'] = variant.get('refAllele')
+        position['altSeq'] = variant.get('altAllele')
+        
+        position.pop('variants')
 
 
     def processTranscript(self, position, transcript):
         position['gene'] = transcript.getHgnc()
         position['source'] = transcript.getSource()
-        position['isCanonical'] = transcript.getCanonical()
+        if transcript.getCanonical():
+            position['isCanonical'] = transcript.getCanonical()
         position['transcript'] = transcript.getTranscript()
-        position['hgvsProtein'] = transcript.getHgvsp()
-        position['hgvsCds'] = transcript.getHgvsc()
+        if transcript.getHgvsp():
+            position['hgvsProtein'] = transcript.getHgvsp()
+        if transcript.getHgvsc():
+            position['hgvsCds'] = transcript.getHgvsc()
 
     def getBestTranscript(self, transcripts):
         """
