@@ -245,7 +245,7 @@ class VcfAdapter(NirvanaJsonAdapter):
             pattern = re.compile(r'(.*):(c\..*)\(p.\((.*)\)\)')    
             match = pattern.match(printPosition['hgvsProtein'])
             if match:
-                position['hgvsProtein'] = match.group(1) + ":" + "p." + match.group(3)
+                printPosition['hgvsProtein'] = match.group(1) + ":" + "p." + match.group(3)
             printPosition['hgvsProtein'] = printPosition['hgvsProtein'].replace("(", "")
             printPosition['hgvsProtein'] = printPosition['hgvsProtein'].replace(")", "")
             
