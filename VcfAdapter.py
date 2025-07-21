@@ -28,14 +28,26 @@ class Transcript:
     def putConsequence(self, consequence):
         self.consequences.append(consequence)
         
+    def getConsequence(self):
+        return self.consequences
+        
     def putHgnc( self, hgnc ):
         self.hgnc = hgnc
+        
+    def getHgnc(self):
+        return self.hgnc
         
     def putHgvsp(self, hgvsp):
         self.hgvsp = hgvsp
     
+    def getHgvsp(self):
+        return self.hgvsp
+    
     def putHgvsc(self, hgvsc):
         self.hgvsc = hgvsc
+        
+    def getHgvsc(self):
+        return self.hgvsc
         
     def putCanonical(self, isCanonical):
         self.isCanonical = isCanonical
@@ -97,13 +109,40 @@ class VcfAdapter(NirvanaJsonAdapter):
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgvsc', 'string'), 'hgvsc')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.isCanonical', 'boolean'), 'isCanonical')
         self.addSimpleMapping(('positions.item.variants.item.transcripts.item.source', 'string'), 'source')
+        self.addSimpleMapping(('positions.item.filters.item', 'string'), 'filters')
+        self.addSimpleMapping(('positions.item.variants.item.transcripts.item.hgnc', "string"), 'hgnc')
+        
+        #TODO: Process sample information.
+        self.addSimpleMapping(('positions.item.samples.item.genotype', 'string'), 'genotype')
+        self.addSimpleMapping(('positions.item.samples.item.variantFrequencies', 'number'), 'variantFrequencies')
+        self.addSimpleMapping(('positions.item.samples.item.totalDepth', 'number'), 'totalDepth')
+        self.addSimpleMapping(('positions.item.samples.item.allelleDepths', 'number'), 'allelleDepths')
+        # Double types aren't serializable to JSON apparently.  Rework this if you enable
+        #self.addSimpleMapping(('positions.item.samples.item.somaticQuality', 'number'), 'somaticQuality')
+        
         
         self.addComplexMapping(('positions.item', 'end_map'), self.handle_end_map_positions_item)
-        #self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
+        self.addComplexMapping(('positions.item.variants.item', 'start_map'), self.handle_start_map_variants_item)
+        self.addComplexMapping(('positions.item.samples.item', 'start_map'), self.handle_start_map_samples_item)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item.consequence.item', 'string'), self.handleTranscriptConsequence)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'start_map'), self.handleNewTranscript)
         self.addComplexMapping(('positions.item.variants.item.transcripts.item', 'end_map'), self.addFinishedTranscript)
-        
+
+
+    def handle_start_map_samples_item(self, value):
+        """
+        Handle the start of a new variants item.
+        This is called when a new variants item is encountered in the JSON structure.
+        """
+        self.addArrayToContext(['positions', 'samples'])
+
+    
+    def handle_start_map_variants_item(self, value):
+        """
+        Handle the start of a new variants item.
+        This is called when a new variants item is encountered in the JSON structure.
+        """
+        self.addArrayToContext(['positions', 'variants'])
     
     # When a position ends, it's time to figure out if we need to print the position.
     # We don't print a position if it doesn't have the right filter item, or if the gene has already been printed.
@@ -132,14 +171,12 @@ class VcfAdapter(NirvanaJsonAdapter):
         self.currentTranscript = Transcript()
         
     def addFinishedTranscript(self, value):
-        self.currentTranscript.putSource( self.context['positions.item.variants.item.transcripts.item.source'] )
-        self.currentTranscript.putHgnc( self.context['positions.item.variants.item.transcripts.item.hgnc'] )
-        self.currentTranscript.putHgvsp( self.context['positions.item.variants.item.transcripts.item.hgvsp'] )
-        self.currentTranscript.putHgvsc( self.context['positions.item.variants.item.transcripts.item.hgvsc'] )
-        self.currentTranscript.putCanonical( self.context['positions.item.variants.item.transcripts.item.isCanonical'] )
-        self.currentTranscript.putTranscript( self.context['positions.item.variants.item.transcripts.item.transcript'] )
-        
-        
+        self.currentTranscript.putSource(self.context['positions'][0]['variants'][-1]['transcripts'][-1]['source'])
+        self.currentTranscript.putHgnc(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('hgnc'))
+        self.currentTranscript.putHgvsp(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('hgvsp'))
+        self.currentTranscript.putHgvsc(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('hgvsc'))
+        self.currentTranscript.putCanonical(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('isCanonical'))
+        self.currentTranscript.putTranscript(self.context['positions'][0]['variants'][-1]['transcripts'][-1].get('transcript'))
         self.transcripts.append(self.currentTranscript)
 
 #    def handle_start_map_variants_item(self, value):
@@ -207,27 +244,14 @@ class VcfAdapter(NirvanaJsonAdapter):
         if len(position.get('samples')) > 1:
             print("More than one sample found, only processing the first one.", file=sys.stderr)
         
-        
+        # TODO: There are more than 1 sample.  How to process them?
         sample = position.get('samples')[0]
+                
+        position['genotype'] = sample.get('genotype', None)
+        position['variantFrequencies'] = sample.get('variantFrequencies', None)
+        position['alleleDepths'] = sample.get('allelleDepths', None)
+        position['somaticQuality'] = sample.get('somaticQuality', None)
         
-        copyNumber = sample.get('copyNumber', None)
-        minorHaplotype = sample.get('minorHaplotypeCopyNumber', None)
-        genotype = sample.get('genotype', None)
-        
-        #cna = copyNumber / minorHaplotype 
-        copyChange = (copyNumber - 2)
-        #log2Cna = math.log2(cna)
-        lohState = sample.get('lossOfHeterozygosity', None)
-        if lohState is not None:
-            position['lohState'] = "LOH"
-        #else:
-        #    position['lohState'] = "HET"
-            
-        #position['cna'] = cna
-        position['copyChange'] = copyChange
-        #position['log2Cna'] = log2Cna
-        
-
         position.pop('samples', None)  # Remove samples as we are only interested in the first one for now
 
 

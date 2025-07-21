@@ -177,3 +177,6 @@ class NirvanaJsonAdapter:
                 tempfile.seek(0)
                 self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed
                 jsonStructure.perform2ndPass( tempfile, originalOutputHandle )
+                
+                tempfile.close()
+                
