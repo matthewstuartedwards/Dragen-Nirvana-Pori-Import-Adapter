@@ -177,6 +177,7 @@ class NirvanaJsonAdapter:
                     self.processEvents( prefix, event, value )
                 print( "]", file=tempfile )
                 
+                
                 # Go back to the start of the temporary file and read it for the 2nd pass.
                 tempfile.seek(0)
                 self.setOutputHandle( originalOutputHandle ) # Not sure if this is needed

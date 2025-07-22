@@ -6,6 +6,7 @@ import ijson
 from NirvanaJsonAdapter import NirvanaJsonAdapter
 from jsonStructure import perform2ndPass
 from jsonConstants import cnvConsequencePriorityList
+from conversionTools import determineZygosity
 
 class VcfTranscript:
     """
@@ -279,7 +280,7 @@ class VcfAdapter(NirvanaJsonAdapter):
         sample = position.get('samples')[0]
         
         if sample.get('genotype'):
-            position['genotype'] = sample.get('genotype')
+            position['zygosity'] = determineZygosity( sample.get('genotype') )
         if sample.get('variantFrequencies') is not None:
             position['variantFrequencies'] = sample.get('variantFrequencies')
         if sample.get('allelleDepths'):
