@@ -86,10 +86,8 @@ class VcfAdapter(NirvanaJsonAdapter):
     """
     
     # private class members
-    iterator= 0
-    transcriptEvents = []
-    transcripts = []
-    currentTranscript = None
+    hgvsProteinPattern = re.compile(r'(.*):(c\..*)\(p.\((.*)\)\)')
+    isMitochondrialPattern = re.compile(r'^(\S+:m\.\S+)?$')
     
     def __init__(self, output_handle):
         """
@@ -99,6 +97,10 @@ class VcfAdapter(NirvanaJsonAdapter):
         """
         super().__init__()
         self.context['positions'] = [{}]
+        self.transcripts = []
+        self.currentTranscript = None
+        self.iterator= 0
+        self.transcriptEvents = []
         self.setOutputHandle(output_handle)
         
         # Add mappings
@@ -159,19 +161,23 @@ class VcfAdapter(NirvanaJsonAdapter):
         
         position = self.context['positions'][0]
         
-        if position.get('filters') and self.passFilter in position['filters']:
-            printPosition = self.massagePosition( position, self.transcripts )
-            
-            
-            # Check if the position has a gene as PORI will expect one.
-            if 'gene' not in printPosition or printPosition['gene'] is None or 'proteinChange' not in printPosition:
-                self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
-                return
-            
-            self.printComma() # Function handles printing a comma if needed for array or map purposes
-            print(json.dumps(printPosition, indent=4), file=self.output_handle)
+        try:
+            if position.get('filters') and self.passFilter in position['filters']:
+                printPosition = self.massagePosition( position, self.transcripts )
+                
+                
+                # Check if the position has a gene as PORI will expect one.
+                if 'gene' not in printPosition or printPosition['gene'] is None or 'proteinChange' not in printPosition:
+                    self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
+                    return
+                
+                self.printComma() # Function handles printing a comma if needed for array or map purposes
+                print(json.dumps(printPosition, indent=4), file=self.output_handle)
         
-        self.context['positions'] = [{}]
+        finally:
+            self.transcripts.clear()
+            self.currentTranscript = None
+            self.context['positions'] = [{}]
         
     # This function handles the start of a new transcript item
     # If this is the first new transcript, it initializes the list and the context
@@ -243,8 +249,8 @@ class VcfAdapter(NirvanaJsonAdapter):
         # Make sure proteinChange is in the position.
         if printPosition.get('hgvsProtein'):
             # Check the format of the hgvsProtein.  There's some weird stuff out there.
-            pattern = re.compile(r'(.*):(c\..*)\(p.\((.*)\)\)')    
-            match = pattern.match(printPosition['hgvsProtein'])
+            #pattern = re.compile(r'(.*):(c\..*)\(p.\((.*)\)\)')    
+            match = self.hgvsProteinPattern.match(printPosition['hgvsProtein'])
             if match:
                 printPosition['hgvsProtein'] = match.group(1) + ":" + "p." + match.group(3)
             printPosition['hgvsProtein'] = printPosition['hgvsProtein'].replace("(", "")
@@ -253,8 +259,7 @@ class VcfAdapter(NirvanaJsonAdapter):
             printPosition['proteinChange'] = printPosition['hgvsProtein'].split(':')[1]
         elif printPosition.get('hgvsg'):
             proteinChange = printPosition['hgvsg']
-            isMitochondrial = re.compile(r'^(\S+:m\.\S+)?$')
-            if not isMitochondrial.match( proteinChange ):
+            if not self.isMitochondrialPattern.match( proteinChange ):
                 printPosition['proteinChange'] = proteinChange.split(':')[1]
             else:
                 printPosition['proteinChange'] = proteinChange.split(':')[0]
@@ -274,10 +279,9 @@ class VcfAdapter(NirvanaJsonAdapter):
 
     def processSample(self, position):
         if len(position.get('samples')) > 1:
-            print("More than one sample found, only processing the first one.", file=sys.stderr)
+            print("More than one sample found, processing the one with the highest somatic quality.", file=sys.stderr)
         
-        # TODO: There are more than 1 sample.  How to process them?
-        sample = position.get('samples')[0]
+        sample = max( position.get('samples', []), key=lambda x: float(x.get('somaticQuality', 0)))
         
         if sample.get('genotype'):
             position['zygosity'] = determineZygosity( sample.get('genotype') )

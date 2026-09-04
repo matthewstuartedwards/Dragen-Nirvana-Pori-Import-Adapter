@@ -67,6 +67,7 @@ class CnvAdapter(NirvanaJsonAdapter):
         
         self.context['positions'] = [{}]
         
+        
     # This function handles the start of a new transcript item
     # If this is the first new transcript, it initializes the list and the context
     def handleNewTranscript(self, value):
@@ -144,7 +145,6 @@ class CnvAdapter(NirvanaJsonAdapter):
         genotype = sample.get('genotype', None)
         
         #cna = copyNumber / minorHaplotype 
-        copyChange = (copyNumber - 2)
         #log2Cna = math.log2(cna)
         lohState = sample.get('lossOfHeterozygosity', None)
         if lohState is not None:
@@ -153,7 +153,8 @@ class CnvAdapter(NirvanaJsonAdapter):
         #    position['lohState'] = "HET"
             
         #position['cna'] = cna
-        position['copyChange'] = copyChange
+        if copyNumber:
+            position['copyChange'] = (copyNumber - 2)
         #position['log2Cna'] = log2Cna
         
 
