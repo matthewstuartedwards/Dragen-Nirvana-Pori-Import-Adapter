@@ -62,6 +62,11 @@ class CnvAdapter(NirvanaJsonAdapter):
                 self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
                 return
             
+            # Check if the kbCategory is unknown to us, don't let it continue or IPR will throw an error.
+            if printPosition.get('kbCategory') == 'unknown':
+                self.context['positions'] = [{}]  # Reset positions to avoid printing empty objects
+                return
+            
             self.printComma() # Function handles printing a comma if needed for array or map purposes
             print(json.dumps(printPosition, indent=4), file=self.output_handle)
         
